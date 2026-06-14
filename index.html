@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Matrix Solver</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0f0f1a;
+  color: #e0e0e0;
+  min-height: 100vh;
+  padding: 10px;
+  font-size: 15px;
+}
+h1 {
+  text-align: center;
+  font-size: 20px;
+  color: #7eb8ff;
+  margin-bottom: 14px;
+}
+h2 {
+  font-size: 15px;
+  color: #7eb8ff;
+  margin: 0 0 8px;
+}
+.section {
+  background: #1a1a2e;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.hint {
+  font-size: 12px;
+  color: #777;
+  margin-bottom: 8px;
+}
+.size-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+select {
+  background: #252540;
+  border: 1px solid #3a3a5c;
+  color: #e0e0e0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 15px;
+  outline: none;
+}
+select:focus { border-color: #7eb8ff; }
+
+/* Shared grid cell base */
+.cell {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s, transform 0.1s;
+}
+.cell:active { transform: scale(0.92); }
+
+/* State matrix cells */
+.st-empty {
+  background: #252540;
+  color: #555;
+  border: 1px solid #3a3a5c;
+}
+.st-x {
+  background: #2a5a3a;
+  color: #4ade80;
+  border: 1px solid #3d8a5a;
+}
+
+/* Dependency matrix cells */
+.dep-empty {
+  background: #252540;
+  color: #555;
+  border: 1px solid #3a3a5c;
+}
+.dep-x {
+  background: #1a4a2e;
+  color: #4ade80;
+  border: 1px solid #2d7a4a;
+}
+.dep-o {
+  background: #4a1a2e;
+  color: #f87171;
+  border: 1px solid #7a2d4a;
+}
+
+.grid-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+table {
+  border-collapse: collapse;
+}
+th, td {
+  text-align: center;
+  padding: 3px 2px;
+  font-size: 12px;
+}
+th {
+  color: #7eb8ff;
+  font-weight: 600;
+}
+.rl {
+  color: #7eb8ff;
+  font-weight: 600;
+  text-align: right;
+  padding-right: 4px;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.btn {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:active { opacity: 0.7; }
+.btn-solve {
+  background: linear-gradient(135deg, #4a7aff, #7e5bef);
+  color: white;
+}
+.btn-clear {
+  background: #2a2a40;
+  color: #aaa;
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+/* Results */
+#results { display: none; }
+.res-hdr {
+  text-align: center;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+.res-ok { background: #1a3a2a; color: #4ade80; }
+.res-fail { background: #3a1a1a; color: #f87171; }
+
+.step {
+  background: #1e1e35;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.step-title {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 4px;
+  color: #c0c0ff;
+}
+.step-fx {
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 4px;
+}
+.sg { font-size: 12px; }
+.sr {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  margin-bottom: 1px;
+}
+.srl {
+  width: 22px;
+  font-size: 10px;
+  color: #7eb8ff;
+  font-weight: 600;
+}
+.pc {
+  width: 20px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  border-radius: 2px;
+}
+.pc-e { background: #1a1a2e; color: #333; }
+.pc-x { background: #2a5a3a; color: #4ade80; font-weight: 700; }
+.pc-t { background: #1a3a6a; color: #7eb8ff; }
+.ph {
+  width: 20px;
+  text-align: center;
+  font-size: 9px;
+  color: #555;
+}
+</style>
+</head>
+<body>
+
+<h1>Matrix Solver</h1>
+
+<div class="section">
+  <div class="size-row">
+    <span style="font-size:13px;color:#aaa">Rows:</span>
+    <select id="sz" onchange="init()">
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5" selected>5</option>
+      <option value="6">6</option>
+      <option value="7">7</option>
+      <option value="8">8</option>
+      <option value="9">9</option>
+      <option value="10">10</option>
+    </select>
+  </div>
+</div>
+
+<div class="section">
+  <h2>State Matrix</h2>
+  <div class="hint">Tap to place X. Tap again to clear. One X per row.</div>
+  <div class="grid-wrap" id="stBox"></div>
+</div>
+
+<div class="section">
+  <h2>Dependency Matrix</h2>
+  <div class="hint">Tap to cycle: . &rarr; X (same) &rarr; O (opposite) &rarr; .</div>
+  <div class="grid-wrap" id="depBox"></div>
+</div>
+
+<button class="btn btn-solve" onclick="solve()">SOLVE</button>
+<button class="btn btn-clear" onclick="init()">Clear All</button>
+
+<div id="results" class="section" style="margin-top:10px"></div>
+
+<script>
+let N = 5;
+let stMatrix = [];   // stMatrix[row] = position 1-7 or 0
+let depMatrix = [];   // depMatrix[row][col] = '.','x','o'
+
+function init() {
+  N = parseInt(document.getElementById('sz').value);
+  stMatrix = new Array(N).fill(0);
+  depMatrix = [];
+  for (let i = 0; i < N; i++) {
+    depMatrix.push(new Array(N).fill('.'));
+  }
+  renderState();
+  renderDep();
+  document.getElementById('results').style.display = 'none';
+}
+
+function renderState() {
+  const box = document.getElementById('stBox');
+  let h = '<table><tr><th></th>';
+  for (let c = 1; c <= 7; c++) h += `<th>${c}</th>`;
+  h += '</tr>';
+  for (let i = 0; i < N; i++) {
+    h += `<tr><td class="rl">R${i+1}</td>`;
+    for (let c = 1; c <= 7; c++) {
+      const isX = stMatrix[i] === c;
+      const cls = isX ? 'cell st-x' : 'cell st-empty';
+      const txt = isX ? 'X' : '.';
+      h += `<td><div class="${cls}" onclick="tapState(${i},${c})">${txt}</div></td>`;
+    }
+    h += '</tr>';
+  }
+  h += '</table>';
+  box.innerHTML = h;
+}
+
+function tapState(row, col) {
+  if (stMatrix[row] === col) {
+    stMatrix[row] = 0; // clear
+  } else {
+    stMatrix[row] = col; // set
+  }
+  renderState();
+}
+
+function renderDep() {
+  const box = document.getElementById('depBox');
+  let h = '<table><tr><th></th>';
+  for (let c = 0; c < N; c++) h += `<th>R${c+1}</th>`;
+  h += '</tr>';
+  for (let i = 0; i < N; i++) {
+    h += `<tr><td class="rl">R${i+1}</td>`;
+    for (let j = 0; j < N; j++) {
+      const v = depMatrix[i][j];
+      let cls, txt;
+      if (v === 'x') { cls = 'cell dep-x'; txt = 'X'; }
+      else if (v === 'o') { cls = 'cell dep-o'; txt = 'O'; }
+      else { cls = 'cell dep-empty'; txt = '.'; }
+      h += `<td><div class="${cls}" onclick="tapDep(${i},${j})">${txt}</div></td>`;
+    }
+    h += '</tr>';
+  }
+  h += '</table>';
+  box.innerHTML = h;
+}
+
+function tapDep(i, j) {
+  const v = depMatrix[i][j];
+  if (v === '.') depMatrix[i][j] = 'x';
+  else if (v === 'x') depMatrix[i][j] = 'o';
+  else depMatrix[i][j] = '.';
+  renderDep();
+}
+
+// --- Solver ---
+
+function applyMove(state, row, dir, deps, n) {
+  const delta = dir === 'left' ? 1 : -1;
+  const ns = state.slice();
+  const ch = {};
+
+  if (ns[row] !== 0) {
+    const p = ns[row] + delta;
+    if (p < 1 || p > 7) return null;
+    ch[row] = p;
+  }
+
+  for (let j = 0; j < n; j++) {
+    if (j === row) continue;
+    const dep = deps[row][j]; // row-based
+    if (dep === 'x' && ns[j] !== 0) {
+      const p = ns[j] + delta;
+      if (p < 1 || p > 7) return null;
+      ch[j] = p;
+    } else if (dep === 'o' && ns[j] !== 0) {
+      const p = ns[j] - delta;
+      if (p < 1 || p > 7) return null;
+      ch[j] = p;
+    }
+  }
+
+  for (const idx in ch) ns[parseInt(idx)] = ch[idx];
+  return ns;
+}
+
+function bfs(state, deps, n, active) {
+  const target = 4;
+  if (active.every(i => state[i] === target)) return [];
+
+  const key = s => s.join(',');
+  const q = [[state.slice(), []]];
+  const vis = new Set([key(state)]);
+  let head = 0;
+
+  while (head < q.length) {
+    const [cur, moves] = q[head++];
+    for (let r = 0; r < n; r++) {
+      for (const d of ['left', 'right']) {
+        const ns = applyMove(cur, r, d, deps, n);
+        if (!ns) continue;
+        const k = key(ns);
+        if (!vis.has(k)) {
+          const nm = [...moves, [r, d]];
+          if (active.every(i => ns[i] === target)) return nm;
+          vis.add(k);
+          q.push([ns, nm]);
+          if (vis.size > 5000000) return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function stateGrid(state, n, active) {
+  let h = '<div class="sg"><div class="sr"><div class="srl"></div>';
+  for (let c = 1; c <= 7; c++) h += `<div class="ph">${c}</div>`;
+  h += '</div>';
+  for (let i = 0; i < n; i++) {
+    if (state[i] === 0 && !active.includes(i)) continue;
+    h += `<div class="sr"><div class="srl">R${i+1}</div>`;
+    for (let c = 1; c <= 7; c++) {
+      if (state[i] === c) h += '<div class="pc pc-x">X</div>';
+      else if (c === 4) h += '<div class="pc pc-t">|</div>';
+      else h += '<div class="pc pc-e">.</div>';
+    }
+    h += '</div>';
+  }
+  return h + '</div>';
+}
+
+function solve() {
+  const state = stMatrix.slice();
+  const deps = depMatrix;
+  const active = [];
+  for (let i = 0; i < N; i++) {
+    if (state[i] >= 1 && state[i] <= 7) active.push(i);
+  }
+
+  const rd = document.getElementById('results');
+
+  if (!active.length) {
+    rd.style.display = 'block';
+    rd.innerHTML = '<div class="res-hdr res-fail">No elements. Tap state grid to place X marks.</div>';
+    return;
+  }
+
+  rd.style.display = 'block';
+  rd.innerHTML = '<div class="res-hdr" style="background:#1a1a3a;color:#aaa">Solving...</div>';
+
+  setTimeout(() => {
+    const res = bfs(state, deps, N, active);
+
+    if (res === null) {
+      rd.innerHTML = '<div class="res-hdr res-fail">No solution found.<br><span style="font-size:12px;font-weight:400">Check inputs or try different dependencies.</span></div>';
+      return;
+    }
+    if (!res.length) {
+      rd.innerHTML = '<div class="res-hdr res-ok">Already solved!</div>';
+      return;
+    }
+
+    let h = `<div class="res-hdr res-ok">Solution: ${res.length} move${res.length !== 1 ? 's' : ''}</div>`;
+    h += '<div class="step"><div class="step-title">Initial State</div>' + stateGrid(state, N, active) + '</div>';
+
+    let cur = state.slice();
+    for (let s = 0; s < res.length; s++) {
+      const [row, dir] = res[s];
+      const arrow = dir === 'left' ? '\u2190 towards 7' : '\u2192 towards 1';
+      h += `<div class="step"><div class="step-title">Step ${s+1}: R${row+1} ${dir.toUpperCase()} ${arrow}</div>`;
+
+      const fx = [];
+      for (let j = 0; j < N; j++) {
+        if (j === row) continue;
+        const dep = deps[row][j];
+        if (dep === 'x') fx.push(`R${j+1} ${dir}`);
+        else if (dep === 'o') fx.push(`R${j+1} ${dir === 'left' ? 'right' : 'left'}`);
+      }
+      if (fx.length) h += `<div class="step-fx">${fx.join(' \u2022 ')}</div>`;
+
+      cur = applyMove(cur, row, dir, deps, N);
+      h += stateGrid(cur, N, active) + '</div>';
+    }
+
+    rd.innerHTML = h;
+    rd.scrollIntoView({ behavior: 'smooth' });
+  }, 50);
+}
+
+init();
+</script>
+</body>
+</html>
