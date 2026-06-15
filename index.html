@@ -474,14 +474,32 @@ function solve() {
       if (last && last.row === row && last.dir === dir) last.count++;
       else groups.push({ row, dir, count: 1 });
     }
-    h += '<div class="summary"><div class="summary-title">Quick steps</div><div class="summary-chips">';
+    h += '<div class="summary"><div class="summary-title">Quick steps (in order)</div><div class="summary-chips">';
     for (const g of groups) {
       const dc = g.dir === 'left' ? 'chip-dir-left' : 'chip-dir-right';
       h += `<span class="chip"><span class="chip-row">R${g.row + 1}</span>` +
         `<span class="${dc}">${g.dir.toUpperCase()}</span>` +
         `<span class="chip-count">${g.count}x</span></span>`;
     }
-    h += '</div></div>';
+    h += '</div>';
+
+    // Net tally per row: left/right cancel out, showing net direction + count.
+    // Overview only — order above is the source of truth for execution.
+    const net = {};
+    for (const [row, dir] of res) net[row] = (net[row] || 0) + (dir === 'left' ? 1 : -1);
+    const netRows = Object.keys(net).map(Number).filter(r => net[r] !== 0).sort((a, b) => a - b);
+    if (netRows.length) {
+      h += '<div class="summary-title" style="margin-top:10px">Net per row</div><div class="summary-chips">';
+      for (const r of netRows) {
+        const isLeft = net[r] > 0;
+        const dc = isLeft ? 'chip-dir-left' : 'chip-dir-right';
+        h += `<span class="chip"><span class="chip-row">R${r + 1}</span>` +
+          `<span class="${dc}">${isLeft ? 'LEFT' : 'RIGHT'}</span>` +
+          `<span class="chip-count">${Math.abs(net[r])}x</span></span>`;
+      }
+      h += '</div>';
+    }
+    h += '</div>';
 
     h += '<div class="step"><div class="step-title">Initial State</div>' + stateGrid(state, N, active) + '</div>';
 
