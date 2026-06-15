@@ -163,6 +163,42 @@ th {
 .res-ok { background: #1a3a2a; color: #4ade80; }
 .res-fail { background: #3a1a1a; color: #f87171; }
 
+.summary {
+  background: #16162a;
+  border: 1px solid #2a2a45;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.summary-title {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.summary-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #252540;
+  border: 1px solid #3a3a5c;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.chip-row { color: #7eb8ff; }
+.chip-dir-left { color: #f0a35b; }
+.chip-dir-right { color: #4ade80; }
+.chip-count { color: #c0c0ff; }
+
 .step {
   background: #1e1e35;
   border-radius: 8px;
@@ -430,6 +466,23 @@ function solve() {
     }
 
     let h = `<div class="res-hdr res-ok">Solution: ${res.length} move${res.length !== 1 ? 's' : ''}</div>`;
+
+    // Compact summary: collapse consecutive identical moves into counts
+    const groups = [];
+    for (const [row, dir] of res) {
+      const last = groups[groups.length - 1];
+      if (last && last.row === row && last.dir === dir) last.count++;
+      else groups.push({ row, dir, count: 1 });
+    }
+    h += '<div class="summary"><div class="summary-title">Quick steps</div><div class="summary-chips">';
+    for (const g of groups) {
+      const dc = g.dir === 'left' ? 'chip-dir-left' : 'chip-dir-right';
+      h += `<span class="chip"><span class="chip-row">R${g.row + 1}</span>` +
+        `<span class="${dc}">${g.dir.toUpperCase()}</span>` +
+        `<span class="chip-count">${g.count}x</span></span>`;
+    }
+    h += '</div></div>';
+
     h += '<div class="step"><div class="step-title">Initial State</div>' + stateGrid(state, N, active) + '</div>';
 
     let cur = state.slice();
