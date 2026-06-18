@@ -194,16 +194,40 @@ th {
   font-weight: 700;
   white-space: nowrap;
 }
+.chip { cursor: pointer; }
 .chip-row { color: #7eb8ff; }
 .chip-dir-left { color: #f0a35b; }
 .chip-dir-right { color: #4ade80; }
 .chip-count { color: #c0c0ff; }
+
+/* Checked / done state */
+.chip.done {
+  background: #16331f;
+  border-color: #4ade80;
+  box-shadow: 0 0 0 1px #4ade80;
+}
+.chip.done::before {
+  content: '\2713';
+  color: #4ade80;
+  font-weight: 700;
+  margin-right: 2px;
+}
 
 .step {
   background: #1e1e35;
   border-radius: 8px;
   padding: 10px;
   margin-bottom: 8px;
+}
+.step.clickable { cursor: pointer; }
+.step.done {
+  background: #16331f;
+  box-shadow: 0 0 0 2px #4ade80;
+}
+.step.done .step-title::before {
+  content: '\2713 ';
+  color: #4ade80;
+  font-weight: 700;
 }
 .step-title {
   font-weight: 700;
@@ -287,6 +311,8 @@ th {
 let N = 5;
 let stMatrix = [];   // stMatrix[row] = position 1-7 or 0
 let depMatrix = [];   // depMatrix[row][col] = '.','x','o'
+let solGroups = [];   // quick-step groups, each with .steps = [step indices]
+let stepDone = [];    // stepDone[stepIndex] = true if checked off
 
 function init() {
   N = parseInt(document.getElementById('sz').value);
@@ -467,39 +493,24 @@ function solve() {
 
     let h = `<div class="res-hdr res-ok">Solution: ${res.length} move${res.length !== 1 ? 's' : ''}</div>`;
 
-    // Compact summary: collapse consecutive identical moves into counts
-    const groups = [];
-    for (const [row, dir] of res) {
-      const last = groups[groups.length - 1];
-      if (last && last.row === row && last.dir === dir) last.count++;
-      else groups.push({ row, dir, count: 1 });
-    }
-    h += '<div class="summary"><div class="summary-title">Quick steps (in order)</div><div class="summary-chips">';
-    for (const g of groups) {
+    // Compact summary: collapse consecutive identical moves into counts.
+    // Each group tracks the detailed step indices it covers, so checking off
+    // a quick step also checks its detailed steps (and vice versa).
+    solGroups = [];
+    stepDone = new Array(res.length).fill(false);
+    res.forEach(([row, dir], idx) => {
+      const last = solGroups[solGroups.length - 1];
+      if (last && last.row === row && last.dir === dir) { last.count++; last.steps.push(idx); }
+      else solGroups.push({ row, dir, count: 1, steps: [idx] });
+    });
+    h += '<div class="summary"><div class="summary-title">Quick steps (in order) &mdash; tap to check off</div><div class="summary-chips">';
+    solGroups.forEach((g, gi) => {
       const dc = g.dir === 'left' ? 'chip-dir-left' : 'chip-dir-right';
-      h += `<span class="chip"><span class="chip-row">R${g.row + 1}</span>` +
+      h += `<span class="chip" id="chip-${gi}" onclick="toggleGroup(${gi})"><span class="chip-row">R${g.row + 1}</span>` +
         `<span class="${dc}">${g.dir.toUpperCase()}</span>` +
         `<span class="chip-count">${g.count}x</span></span>`;
-    }
-    h += '</div>';
-
-    // Net tally per row: left/right cancel out, showing net direction + count.
-    // Overview only — order above is the source of truth for execution.
-    const net = {};
-    for (const [row, dir] of res) net[row] = (net[row] || 0) + (dir === 'left' ? 1 : -1);
-    const netRows = Object.keys(net).map(Number).filter(r => net[r] !== 0).sort((a, b) => a - b);
-    if (netRows.length) {
-      h += '<div class="summary-title" style="margin-top:10px">Net per row</div><div class="summary-chips">';
-      for (const r of netRows) {
-        const isLeft = net[r] > 0;
-        const dc = isLeft ? 'chip-dir-left' : 'chip-dir-right';
-        h += `<span class="chip"><span class="chip-row">R${r + 1}</span>` +
-          `<span class="${dc}">${isLeft ? 'LEFT' : 'RIGHT'}</span>` +
-          `<span class="chip-count">${Math.abs(net[r])}x</span></span>`;
-      }
-      h += '</div>';
-    }
-    h += '</div>';
+    });
+    h += '</div></div>';
 
     h += '<div class="step"><div class="step-title">Initial State</div>' + stateGrid(state, N, active) + '</div>';
 
@@ -507,7 +518,7 @@ function solve() {
     for (let s = 0; s < res.length; s++) {
       const [row, dir] = res[s];
       const arrow = dir === 'left' ? '\u2190 towards 7' : '\u2192 towards 1';
-      h += `<div class="step"><div class="step-title">Step ${s+1}: R${row+1} ${dir.toUpperCase()} ${arrow}</div>`;
+      h += `<div class="step clickable" id="dstep-${s}" onclick="toggleStep(${s})"><div class="step-title">Step ${s+1}: R${row+1} ${dir.toUpperCase()} ${arrow}</div>`;
 
       const fx = [];
       for (let j = 0; j < N; j++) {
@@ -525,6 +536,31 @@ function solve() {
     rd.innerHTML = h;
     rd.scrollIntoView({ behavior: 'smooth' });
   }, 50);
+}
+
+// --- Check-off tracking ---
+
+function toggleStep(s) {
+  stepDone[s] = !stepDone[s];
+  syncDone();
+}
+
+function toggleGroup(gi) {
+  const steps = solGroups[gi].steps;
+  const allDone = steps.every(s => stepDone[s]);
+  steps.forEach(s => { stepDone[s] = !allDone; });
+  syncDone();
+}
+
+function syncDone() {
+  stepDone.forEach((d, s) => {
+    const el = document.getElementById('dstep-' + s);
+    if (el) el.classList.toggle('done', d);
+  });
+  solGroups.forEach((g, gi) => {
+    const el = document.getElementById('chip-' + gi);
+    if (el) el.classList.toggle('done', g.steps.every(s => stepDone[s]));
+  });
 }
 
 init();
