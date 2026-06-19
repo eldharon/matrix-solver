@@ -307,7 +307,10 @@ th {
 
 <div id="results" class="section" style="margin-top:10px"></div>
 
+<script src="solver.js"></script>
 <script>
+const { applyMove, solve: solveMatrix } = MatrixSolver;
+
 let N = 5;
 let stMatrix = [];   // stMatrix[row] = position 1-7 or 0
 let depMatrix = [];   // depMatrix[row][col] = '.','x','o'
@@ -383,65 +386,7 @@ function tapDep(i, j) {
   renderDep();
 }
 
-// --- Solver ---
-
-function applyMove(state, row, dir, deps, n) {
-  const delta = dir === 'left' ? 1 : -1;
-  const ns = state.slice();
-  const ch = {};
-
-  if (ns[row] !== 0) {
-    const p = ns[row] + delta;
-    if (p < 1 || p > 7) return null;
-    ch[row] = p;
-  }
-
-  for (let j = 0; j < n; j++) {
-    if (j === row) continue;
-    const dep = deps[row][j]; // row-based
-    if (dep === 'x' && ns[j] !== 0) {
-      const p = ns[j] + delta;
-      if (p < 1 || p > 7) return null;
-      ch[j] = p;
-    } else if (dep === 'o' && ns[j] !== 0) {
-      const p = ns[j] - delta;
-      if (p < 1 || p > 7) return null;
-      ch[j] = p;
-    }
-  }
-
-  for (const idx in ch) ns[parseInt(idx)] = ch[idx];
-  return ns;
-}
-
-function bfs(state, deps, n, active) {
-  const target = 4;
-  if (active.every(i => state[i] === target)) return [];
-
-  const key = s => s.join(',');
-  const q = [[state.slice(), []]];
-  const vis = new Set([key(state)]);
-  let head = 0;
-
-  while (head < q.length) {
-    const [cur, moves] = q[head++];
-    for (let r = 0; r < n; r++) {
-      for (const d of ['left', 'right']) {
-        const ns = applyMove(cur, r, d, deps, n);
-        if (!ns) continue;
-        const k = key(ns);
-        if (!vis.has(k)) {
-          const nm = [...moves, [r, d]];
-          if (active.every(i => ns[i] === target)) return nm;
-          vis.add(k);
-          q.push([ns, nm]);
-          if (vis.size > 5000000) return null;
-        }
-      }
-    }
-  }
-  return null;
-}
+// --- Solver lives in solver.js (MatrixSolver.applyMove / MatrixSolver.solve) ---
 
 function stateGrid(state, n, active) {
   let h = '<div class="sg"><div class="sr"><div class="srl"></div>';
@@ -480,7 +425,7 @@ function solve() {
   rd.innerHTML = '<div class="res-hdr" style="background:#1a1a3a;color:#aaa">Solving...</div>';
 
   setTimeout(() => {
-    const res = bfs(state, deps, N, active);
+    const res = solveMatrix(state, deps, N, active);
 
     if (res === null) {
       rd.innerHTML = '<div class="res-hdr res-fail">No solution found.<br><span style="font-size:12px;font-weight:400">Check inputs or try different dependencies.</span></div>';
