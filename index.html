@@ -291,15 +291,15 @@ th {
 </div>
 
 <div class="section">
-  <h2>State Matrix</h2>
-  <div class="hint">Tap to place X. Tap again to clear. One X per row.</div>
-  <div class="grid-wrap" id="stBox"></div>
-</div>
-
-<div class="section">
   <h2>Dependency Matrix</h2>
   <div class="hint">Tap to cycle: . &rarr; X (same) &rarr; O (opposite) &rarr; .</div>
   <div class="grid-wrap" id="depBox"></div>
+</div>
+
+<div class="section">
+  <h2>State Matrix</h2>
+  <div class="hint">Tap to place X. Tap again to clear. One X per row.</div>
+  <div class="grid-wrap" id="stBox"></div>
 </div>
 
 <button class="btn btn-solve" onclick="solve()">SOLVE</button>
@@ -438,22 +438,18 @@ function solve() {
 
     let h = `<div class="res-hdr res-ok">Solution: ${res.length} move${res.length !== 1 ? 's' : ''}</div>`;
 
-    // Compact summary: collapse consecutive identical moves into counts.
-    // Each group tracks the detailed step indices it covers, so checking off
-    // a quick step also checks its detailed steps (and vice versa).
-    solGroups = [];
+    // Each move is one slide: a row, a direction, and how many positions it
+    // travels. One slide = one chip = one detailed step (mapped 1:1 for the
+    // check-off tracking; the solver never splits a slide, so no grouping).
+    solGroups = res.map(([row, dir, count], idx) => ({ row, dir, count, steps: [idx] }));
     stepDone = new Array(res.length).fill(false);
-    res.forEach(([row, dir], idx) => {
-      const last = solGroups[solGroups.length - 1];
-      if (last && last.row === row && last.dir === dir) { last.count++; last.steps.push(idx); }
-      else solGroups.push({ row, dir, count: 1, steps: [idx] });
-    });
+
     h += '<div class="summary"><div class="summary-title">Quick steps (in order) &mdash; tap to check off</div><div class="summary-chips">';
     solGroups.forEach((g, gi) => {
       const dc = g.dir === 'left' ? 'chip-dir-left' : 'chip-dir-right';
       h += `<span class="chip" id="chip-${gi}" onclick="toggleGroup(${gi})"><span class="chip-row">R${g.row + 1}</span>` +
         `<span class="${dc}">${g.dir.toUpperCase()}</span>` +
-        `<span class="chip-count">${g.count}x</span></span>`;
+        `<span class="chip-count">&times;${g.count}</span></span>`;
     });
     h += '</div></div>';
 
@@ -461,20 +457,20 @@ function solve() {
 
     let cur = state.slice();
     for (let s = 0; s < res.length; s++) {
-      const [row, dir] = res[s];
+      const [row, dir, count] = res[s];
       const arrow = dir === 'left' ? '\u2190 towards 7' : '\u2192 towards 1';
-      h += `<div class="step clickable" id="dstep-${s}" onclick="toggleStep(${s})"><div class="step-title">Step ${s+1}: R${row+1} ${dir.toUpperCase()} ${arrow}</div>`;
+      h += `<div class="step clickable" id="dstep-${s}" onclick="toggleStep(${s})"><div class="step-title">Step ${s+1}: R${row+1} ${dir.toUpperCase()} &times;${count} ${arrow}</div>`;
 
       const fx = [];
       for (let j = 0; j < N; j++) {
         if (j === row) continue;
         const dep = deps[row][j];
-        if (dep === 'x') fx.push(`R${j+1} ${dir}`);
-        else if (dep === 'o') fx.push(`R${j+1} ${dir === 'left' ? 'right' : 'left'}`);
+        if (dep === 'x') fx.push(`R${j+1} ${dir} &times;${count}`);
+        else if (dep === 'o') fx.push(`R${j+1} ${dir === 'left' ? 'right' : 'left'} &times;${count}`);
       }
       if (fx.length) h += `<div class="step-fx">${fx.join(' \u2022 ')}</div>`;
 
-      cur = applyMove(cur, row, dir, deps, N);
+      for (let t = 0; t < count; t++) cur = applyMove(cur, row, dir, deps, N);
       h += stateGrid(cur, N, active) + '</div>';
     }
 
